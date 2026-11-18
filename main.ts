@@ -6,7 +6,8 @@
 // output directory, asks the vendored make.fun library to summarise the
 // delivery as dossier.json for the judge, and finally leaves a small
 // build-info.json receipt of its own — what was shipped, how big each file
-// is, and when the shipment was packed.
+// is, and a digest of the contents. No clock is consulted anywhere in the
+// packing, so two runs over the same tree produce byte-identical output.
 //
 // Run it the way the grader does, with the output directory named by the
 // MAKEFUN_OUTPUT_DIR environment variable (falling back to /output):
@@ -14,6 +15,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createHash } from 'node:crypto';
 import { buildDossier } from './vendor/makefun-game.ts';
 
 const GAME_TITLE = 'Aegis Line — Neon Tower Defense';
@@ -104,12 +106,20 @@ function main(): void {
   fs.writeFileSync(path.join(outputDir, 'dossier.json'), dossier);
   console.log(`[aegis] dossier.json written (${describeBytes(dossier.byteLength)})`);
 
-  // Our own receipt beside it: title, packing time, the manifest of shipped
-  // files with their sizes, the game's total source size, and the names of
-  // the screenshots on board.
+  // Our own receipt beside it: title, a digest of the shipped contents, the
+  // manifest of shipped files with their sizes, the game's total source
+  // size, and the names of the screenshots on board. The digest stands in
+  // for a packing time: it is derived only from the files themselves, so
+  // the receipt is identical on every run of the same tree.
+  const digest = createHash('sha256');
+  for (const parcel of shipped) {
+    digest.update(parcel.label);
+    digest.update('\n');
+    digest.update(fs.readFileSync(parcel.from));
+  }
   const receipt = {
     game: GAME_TITLE,
-    builtAt: new Date().toISOString(),
+    contentDigest: digest.digest('hex'),
     copiedFiles: shipped.map((p) => ({ path: p.label, bytes: p.bytes })),
     totalSourceBytes: sourceBytes,
     screenshots: shotParcels.map((p) => path.basename(p.from)),

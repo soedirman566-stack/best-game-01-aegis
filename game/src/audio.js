@@ -1,8 +1,12 @@
 // WebAudio synth effects: every sound is an oscillator or a burst of filtered noise, shaped by an
 // envelope. No audio files, nothing to load. The context is created lazily and resumed on the first
 // user gesture, as browsers require; every call is a no-op until then and safe in headless runs.
+// The noise bursts draw from the seeded stream handed in by main (a fixed-seed stream when none
+// is), never from Math.random — the page consumes no unseeded randomness anywhere.
 
-export function createAudio() {
+import { makeRng } from './rng.js';
+
+export function createAudio(rng = makeRng(0x5a5a5a)) {
   let ctx = null;
   let master = null;
   let muted = false;
@@ -41,7 +45,7 @@ export function createAudio() {
     const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    for (let i = 0; i < len; i += 1) data[i] = (rng() * 2 - 1) * (1 - i / len);
     const src = ctx.createBufferSource();
     src.buffer = buf;
     const filter = ctx.createBiquadFilter();

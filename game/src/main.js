@@ -2,9 +2,10 @@
 // drawing in render.js; this file wires them to the canvas, the mouse and the keyboard, and turns
 // the world's queued event names into synth sounds.
 //
-// ?seed=N fixes the random stream (a real game uses the clock). ?shot=menu|early|late|upgrade
-// stages that deterministic scene instead of running the loop, paints it, and sets
-// window.__shotReady for the screenshot tooling.
+// ?seed=N fixes the random stream; without one the stream still starts from a fixed default
+// seed below — no wall clock ever touches it, so any load of this page is reproducible.
+// ?shot=menu|early|late|upgrade stages that deterministic scene instead of running the loop,
+// paints it, and sets window.__shotReady for the screenshot tooling.
 
 import { VIEW_W, VIEW_H, STEP, TILE, OX, OY, COLS, ROWS, TOWERS, TOWER_ORDER } from './config.js';
 import { makeRng } from './rng.js';
@@ -16,12 +17,15 @@ import { stageShot } from './shots.js';
 const params = new URLSearchParams(location.search);
 const shotName = params.get('shot');
 const seedParam = Number(params.get('seed'));
-const seed = Number.isInteger(seedParam) && seedParam > 0 ? seedParam : (Date.now() % 90000) + 1;
+const DEFAULT_SEED = 987654321;
+const seed = Number.isInteger(seedParam) && seedParam > 0 ? seedParam : DEFAULT_SEED;
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const status = document.getElementById('status');
-const audio = createAudio();
+// The synth gets its own stream off the same seed, so even the noise bursts are reproducible
+// and nothing in the page consumes unseeded randomness.
+const audio = createAudio(makeRng(seed ^ 0x9e3779b9));
 const world = createWorld(makeRng(seed));
 const { state } = world;
 
